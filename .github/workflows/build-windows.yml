@@ -1,0 +1,99 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Install build tools
+      run: |
+        npm install -g pkg
+        npm install @puppeteer/browsers
+
+    - name: Download Chromium for Windows
+      shell: node {0}
+      run: |
+        const { install, Browser } = require('@puppeteer/browsers');
+        const path = require('path');
+        const fs = require('fs');
+        const { execSync } = require('child_process');
+
+        async function main() {
+          const cacheDir = path.join(process.cwd(), '.cache');
+          console.log('Downloading Chromium...');
+
+          const result = await install({
+            browser: Browser.CHROMIUM,
+            buildId: '1108766',
+            cacheDir: cacheDir,
+          });
+
+          console.log('Chromium executable:', result.executablePath);
+
+          // Copy Chrome directory to dist/chrome-win
+          const chromeDir = path.dirname(result.executablePath);
+          const distDir = path.join(process.cwd(), 'dist', 'chrome-win');
+          fs.mkdirSync(distDir, { recursive: true });
+
+          try {
+            execSync(`robocopy "${chromeDir}" "${distDir}" /E /NFL /NDL /NJH /NJS`, { stdio: 'inherit' });
+          } catch(e) {
+            // robocopy returns exit code 1 on success (files copied), only >7 is error
+            if (e.status > 7) throw e;
+          }
+
+          console.log('Chromium copied to dist/chrome-win/');
+
+          // Verify chrome.exe exists
+          const chromeExe = path.join(distDir, 'chrome.exe');
+          if (fs.existsSync(chromeExe)) {
+            console.log('Verified: chrome.exe found');
+          } else {
+            // List files to debug
+            const files = fs.readdirSync(distDir);
+            console.log('Files in chrome-win:', files);
+            throw new Error('chrome.exe not found in copied directory');
+          }
+        }
+
+        main().catch(e => { console.error(e); process.exit(1); });
+
+    - name: Build EXE with pkg
+      run: pkg . --targets node18-win-x64 --output dist/html2pdf-kami.exe --compress GZip
+
+    - name: Verify build output
+      run: |
+        dir dist\html2pdf-kami.exe
+        dir dist\chrome-win\chrome.exe
+
+    - name: Create release zip
+      shell: pwsh
+      run: |
+        cd dist
+        Compress-Archive -Path html2pdf-kami.exe,chrome-win -DestinationPath ..\html2pdf-kami.zip -Force
+        cd ..
+        Write-Output "Release zip size:"
+        (Get-Item html2pdf-kami.zip).Length / 1MB
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: html2pdf-kami
+        path: html2pdf-kami.zip
+        retention-days: 30

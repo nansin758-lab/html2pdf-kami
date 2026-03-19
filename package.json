@@ -1,0 +1,25 @@
+{
+  "name": "html2pdf-kami",
+  "version": "1.0.0",
+  "description": "HTML to PDF converter with maximum CSS fidelity using Puppeteer screenshots",
+  "main": "index.js",
+  "bin": {
+    "html2pdf-kami": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "build": "pkg . --targets node18-win-x64 --output dist/html2pdf-kami.exe"
+  },
+  "pkg": {
+    "assets": [],
+    "outputPath": "dist"
+  },
+  "dependencies": {
+    "puppeteer-core": "^21.11.0"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  },
+  "author": "kamilee1986",
+  "license": "MIT"
+}
