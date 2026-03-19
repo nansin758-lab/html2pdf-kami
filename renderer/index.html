@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HTML2PDF Kami</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <div class="logo">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="8" fill="url(#grad)"/>
+          <path d="M8 10h16v2H8zm0 5h12v2H8zm0 5h14v2H8z" fill="white" opacity="0.9"/>
+          <defs><linearGradient id="grad" x1="0" y1="0" x2="32" y2="32">
+            <stop stop-color="#667eea"/><stop offset="1" stop-color="#764ba2"/>
+          </linearGradient></defs>
+        </svg>
+        <div>
+          <h1>HTML2PDF</h1>
+          <span class="version">Kami v1.0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Drop Zone -->
+    <div id="dropZone" class="drop-zone">
+      <div class="drop-icon">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+          <path d="M24 4L14 14h7v12h6V14h7L24 4z" fill="currentColor" opacity="0.6"/>
+          <path d="M40 28v10a2 2 0 01-2 2H10a2 2 0 01-2-2V28h4v8h24v-8h4z" fill="currentColor" opacity="0.4"/>
+        </svg>
+      </div>
+      <p class="drop-text">拖拽 HTML 文件到这里</p>
+      <p class="drop-hint">或者</p>
+      <button id="selectBtn" class="select-btn">选择文件</button>
+      <p class="drop-formats">支持 .html / .htm 文件</p>
+    </div>
+
+    <!-- Status Area -->
+    <div id="statusArea" class="status-area hidden">
+      <div class="file-info">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M4 2a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V8l-6-6H4z" fill="#667eea" opacity="0.2"/>
+          <path d="M12 2v4a2 2 0 002 2h4" stroke="#667eea" stroke-width="1.5"/>
+        </svg>
+        <span id="fileName" class="file-name"></span>
+      </div>
+
+      <div class="progress-container">
+        <div id="progressBar" class="progress-bar">
+          <div id="progressFill" class="progress-fill"></div>
+        </div>
+        <span id="progressText" class="progress-text">准备中...</span>
+      </div>
+
+      <div id="resultArea" class="result-area hidden">
+        <div id="successResult" class="result-success hidden">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" fill="#10b981" opacity="0.15"/>
+            <path d="M8 12l3 3 5-5" stroke="#10b981" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <span>转换成功！</span>
+        </div>
+        <div id="errorResult" class="result-error hidden">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" fill="#ef4444" opacity="0.15"/>
+            <path d="M15 9l-6 6m0-6l6 6" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <span id="errorMsg">转换失败</span>
+        </div>
+        <p id="outputPath" class="output-path"></p>
+      </div>
+
+      <button id="resetBtn" class="reset-btn hidden">转换其他文件</button>
+    </div>
+  </div>
+
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const selectBtn = document.getElementById('selectBtn');
+    const statusArea = document.getElementById('statusArea');
+    const fileName = document.getElementById('fileName');
+    const progressFill = document.getElementById('progressFill');
+    const progressText = document.getElementById('progressText');
+    const resultArea = document.getElementById('resultArea');
+    const successResult = document.getElementById('successResult');
+    const errorResult = document.getElementById('errorResult');
+    const errorMsg = document.getElementById('errorMsg');
+    const outputPath = document.getElementById('outputPath');
+    const resetBtn = document.getElementById('resetBtn');
+
+    // Drag and drop
+    document.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    document.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    dropZone.addEventListener('dragenter', () => dropZone.classList.add('drag-over'));
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        const file = files[0];
+        if (file.name.match(/\.(html|htm)$/i)) {
+          startConversion(file.path);
+        } else {
+          alert('请选择 HTML 文件（.html 或 .htm）');
+        }
+      }
+    });
+
+    // File picker
+    selectBtn.addEventListener('click', async () => {
+      const filePath = await window.api.openFileDialog();
+      if (filePath) {
+        startConversion(filePath);
+      }
+    });
+
+    // Reset
+    resetBtn.addEventListener('click', () => {
+      dropZone.classList.remove('hidden');
+      statusArea.classList.add('hidden');
+      resultArea.classList.add('hidden');
+      successResult.classList.add('hidden');
+      errorResult.classList.add('hidden');
+      resetBtn.classList.add('hidden');
+      progressFill.style.width = '0%';
+    });
+
+    async function startConversion(filePath) {
+      // Show status
+      dropZone.classList.add('hidden');
+      statusArea.classList.remove('hidden');
+      resultArea.classList.add('hidden');
+      successResult.classList.add('hidden');
+      errorResult.classList.add('hidden');
+      resetBtn.classList.add('hidden');
+
+      // Extract filename
+      const name = filePath.split(/[/\\]/).pop();
+      fileName.textContent = name;
+      progressText.textContent = '正在转换中...';
+      progressFill.style.width = '0%';
+
+      // Animate progress
+      let progress = 0;
+      const progressInterval = setInterval(() => {
+        progress += Math.random() * 15;
+        if (progress > 90) progress = 90;
+        progressFill.style.width = `${progress}%`;
+      }, 300);
+
+      try {
+        const result = await window.api.convertToPdf(filePath);
+
+        clearInterval(progressInterval);
+        progressFill.style.width = '100%';
+        progressText.textContent = '完成！';
+
+        resultArea.classList.remove('hidden');
+        resetBtn.classList.remove('hidden');
+
+        if (result.success) {
+          successResult.classList.remove('hidden');
+          outputPath.textContent = `📄 ${result.outputPath}`;
+        } else {
+          errorResult.classList.remove('hidden');
+          errorMsg.textContent = `转换失败: ${result.error}`;
+          outputPath.textContent = '';
+        }
+      } catch (err) {
+        clearInterval(progressInterval);
+        progressFill.style.width = '100%';
+        progressFill.style.background = '#ef4444';
+        progressText.textContent = '失败';
+
+        resultArea.classList.remove('hidden');
+        resetBtn.classList.remove('hidden');
+        errorResult.classList.remove('hidden');
+        errorMsg.textContent = `错误: ${err.message}`;
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,24 +1,39 @@
 {
   "name": "html2pdf-kami",
   "version": "1.0.0",
-  "description": "HTML to PDF converter with maximum CSS fidelity using Puppeteer screenshots",
-  "main": "index.js",
-  "bin": {
-    "html2pdf-kami": "./index.js"
-  },
+  "description": "HTML to PDF converter with GUI - maximum CSS fidelity",
+  "main": "main.js",
   "scripts": {
-    "start": "node index.js",
-    "build": "pkg . --targets node18-win-x64 --output dist/html2pdf-kami.exe"
+    "start": "electron .",
+    "build:win": "electron-builder --win --x64",
+    "build": "electron-builder --win --x64"
   },
-  "pkg": {
-    "assets": [],
-    "outputPath": "dist"
+  "build": {
+    "appId": "com.kami.html2pdf",
+    "productName": "html2pdf-kami",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "converter.js",
+      "renderer/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "html2pdf-kami.exe"
+    }
   },
-  "dependencies": {
-    "puppeteer-core": "^21.11.0"
-  },
+  "dependencies": {},
   "devDependencies": {
-    "pkg": "^5.8.1"
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
   },
   "author": "kamilee1986",
   "license": "MIT"
