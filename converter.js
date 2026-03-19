@@ -121,12 +121,17 @@ async function convertHtmlToPdf(htmlFilePath, outputPdfPath) {
 
     const tempHtmlPath = path.join(os.tmpdir(), `html2pdf_temp_${Date.now()}_${Math.random().toString(36).substring(2)}.html`);
     let tempFileCreated = false;
+    let tempImages = [];
 
     try {
-      // Convert PNGs to base64
-      const imagesBase64 = slideImages.map(
-        buf => `data:image/png;base64,${buf.toString('base64')}`
-      );
+      // Save PNG buffers to temp files to avoid huge strings or URI length limits
+      const url = require('url');
+      tempImages = slideImages.map((buf) => {
+        const imgPath = path.join(os.tmpdir(), `html2pdf_temp_img_${Date.now()}_${Math.random().toString(36).substring(2)}.png`);
+        fs.writeFileSync(imgPath, buf);
+        return imgPath;
+      });
+      const imageUrls = tempImages.map(p => url.pathToFileURL(p).href);
 
       const pdfHtml = `<!DOCTYPE html>
 <html>
@@ -134,6 +139,10 @@ async function convertHtmlToPdf(htmlFilePath, outputPdfPath) {
 <style>
   * { margin: 0; padding: 0; }
   body { background: white; }
+  @page {
+    size: ${pageWidth}px ${pageHeight}px;
+    margin: 0;
+  }
   .page {
     width: ${pageWidth}px;
     height: ${pageHeight}px;
@@ -149,7 +158,7 @@ async function convertHtmlToPdf(htmlFilePath, outputPdfPath) {
 </style>
 </head>
 <body>
-${imagesBase64.map(src => `<div class="page"><img src="${src}"></div>`).join('\n')}
+${imageUrls.map(src => `<div class="page"><img src="${src}"></div>`).join('\n')}
 </body>
 </html>`;
 
@@ -161,16 +170,20 @@ ${imagesBase64.map(src => `<div class="page"><img src="${src}"></div>`).join('\n
 
       // Generate PDF
       const pdfData = await pdfWin.webContents.printToPDF({
-        pageSize: { width: pageWidth * 25.4 / 96, height: pageHeight * 25.4 / 96 },
         printBackground: true,
         margins: { top: 0, bottom: 0, left: 0, right: 0 },
-        preferCSSPageSize: false,
+        preferCSSPageSize: true,
       });
 
       fs.writeFileSync(outputPdfPath, pdfData);
     } finally {
       if (tempFileCreated && fs.existsSync(tempHtmlPath)) {
         try { fs.unlinkSync(tempHtmlPath); } catch (e) {}
+      }
+      for (const imgPath of tempImages) {
+        if (fs.existsSync(imgPath)) {
+          try { fs.unlinkSync(imgPath); } catch (e) {}
+        }
       }
       pdfWin.destroy();
     }
