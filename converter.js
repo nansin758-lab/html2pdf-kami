@@ -1,6 +1,7 @@
 const { BrowserWindow } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 const SLIDE_WIDTH = 1280;
 const SLIDE_HEIGHT = 720;
@@ -118,6 +119,9 @@ async function convertHtmlToPdf(htmlFilePath, outputPdfPath) {
       },
     });
 
+    const tempHtmlPath = path.join(os.tmpdir(), `html2pdf_temp_${Date.now()}_${Math.random().toString(36).substring(2)}.html`);
+    let tempFileCreated = false;
+
     try {
       // Convert PNGs to base64
       const imagesBase64 = slideImages.map(
@@ -149,7 +153,10 @@ ${imagesBase64.map(src => `<div class="page"><img src="${src}"></div>`).join('\n
 </body>
 </html>`;
 
-      await pdfWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(pdfHtml)}`);
+      fs.writeFileSync(tempHtmlPath, pdfHtml, 'utf8');
+      tempFileCreated = true;
+
+      await pdfWin.loadFile(tempHtmlPath);
       await new Promise(r => setTimeout(r, 1000));
 
       // Generate PDF
@@ -162,6 +169,9 @@ ${imagesBase64.map(src => `<div class="page"><img src="${src}"></div>`).join('\n
 
       fs.writeFileSync(outputPdfPath, pdfData);
     } finally {
+      if (tempFileCreated && fs.existsSync(tempHtmlPath)) {
+        try { fs.unlinkSync(tempHtmlPath); } catch (e) {}
+      }
       pdfWin.destroy();
     }
   } finally {
